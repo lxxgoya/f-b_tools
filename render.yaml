@@ -1,0 +1,28 @@
+# A paid single-instance web service with a persistent SQLite disk.
+# Review the current Render price before creating this service.
+services:
+  - type: web
+    name: haru
+    runtime: node
+    region: singapore
+    plan: starter
+    buildCommand: npm ci --include=dev --cache /tmp/haru-npm-cache && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    disk:
+      name: haru-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: 24.19.0
+      - key: DATABASE_PATH
+        value: /var/data/haru.sqlite
+      - key: TRUST_PROXY_HOPS
+        value: 1
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+# Render supplies RENDER_EXTERNAL_URL. Set APP_ORIGIN to override it with your
+# own HTTPS domain after configuring that domain in Render.
