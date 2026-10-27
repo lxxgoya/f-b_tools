@@ -20,16 +20,16 @@ export type Collaboration = {
   startTime: string;
   endTime: string;
   collaborator: string;
-  partyType: "개인" | "사업자";
+  partyType: "개인" | "사업자" | "확인 필요";
   activity: string;
   food: boolean;
-  cooking: boolean;
-  outsideFood: boolean;
-  worksOnSite: boolean;
-  payment: "가게" | "협업자";
+  cooking: boolean | null;
+  outsideFood: boolean | null;
+  worksOnSite: boolean | null;
+  payment: "가게" | "협업자" | "확인 필요";
   expectedSales: number;
   expectedIngredients: number;
-  people: number;
+  people: number | null;
   status: Status;
   checklist: ChecklistItem[];
   settlement: Settlement;
@@ -37,6 +37,8 @@ export type Collaboration = {
   createdAt: string;
   updatedAt: string;
   revision: number;
+  sampleKey?: string;
+  sessions?: { label: string; startTime: string; endTime: string }[];
 };
 export type Store = {
   id: string;
@@ -144,8 +146,10 @@ export function guidance(
     "worksOnSite" | "payment" | "partyType" | "food" | "cooking" | "outsideFood"
   >,
 ) {
-  const title =
-    c.payment === "가게"
+  const uncertain = c.payment === "확인 필요" || c.worksOnSite === null;
+  const title = uncertain
+    ? "운영 방식 확인 필요"
+    : c.payment === "가게"
       ? c.worksOnSite
         ? "가게 영업 + 현장 참여"
         : "가게 영업 + 외부 협업"
@@ -153,6 +157,18 @@ export function guidance(
         ? "협업자 결제 + 공동 운영 검토"
         : "공간 제공 + 독립 운영 검토";
   const warnings: string[] = [];
+  if (uncertain)
+    warnings.push(
+      "결제 명의와 매출 귀속, 현장 업무 및 지급 조건을 확인한 뒤 운영 방식을 정하세요. 현재는 확인되지 않은 항목입니다.",
+    );
+  if (c.partyType === "확인 필요")
+    warnings.push(
+      "협업자의 사업자 여부가 아직 확인되지 않았습니다. 안내문만으로 사업자 또는 개인으로 분류하지 않습니다.",
+    );
+  if (c.cooking === null || c.outsideFood === null)
+    warnings.push(
+      "조리 장소와 외부 조리 음식 반입 여부를 확인하세요. 행사 안내문에는 이 정보가 없습니다.",
+    );
   if (c.outsideFood)
     warnings.push(
       "외부에서 조리한 음식은 판매 전에 제조 장소, 영업신고 및 반입 가능 여부를 관할 보건소에 확인하세요.",
@@ -176,8 +192,13 @@ export function guidance(
   return {
     title,
     warnings,
-    flow:
-      c.payment === "가게"
+    flow: uncertain
+      ? [
+          "결제·매출 귀속 → 확인 필요",
+          "현장 업무·역할 → 확인 필요",
+          "지급·비용 부담 → 합의 필요",
+        ]
+      : c.payment === "가게"
         ? [
             "고객 결제 → 우리 가게",
             "매출 기록 → 우리 가게",
@@ -198,7 +219,7 @@ export function draftDocument(
   const s = totals(c.settlement);
   const common = `${kind} · 검토 초안\n\n행사: ${c.title}\n장소: ${store.name}${store.address ? ` (${store.address})` : ""}\n일시: ${c.date} ${c.startTime}–${c.endTime}${c.endTime <= c.startTime ? " (종료는 다음 날)" : ""}\n가게 운영자: [성명·사업자 정보 기재]\n협업자: ${c.collaborator} (${c.partyType})\n내용: ${c.activity}\n`;
   const sections: Record<DocumentKind, string> = {
-    "협업 운영 합의서": `\n1. 운영과 역할\n${guidance(c).title}\n가게 담당 업무: [기재]\n협업자 담당 업무: [기재]\n\n2. 매출과 비용\n결제 수령: ${c.payment}\n예상 매출: ${money(c.expectedSales)}원\n식재료 조달·비용 부담: [기재]\n환불·고객 응대 담당: [기재]\n\n3. 지급과 마감\n지급액·산정 방식·지급일: [합의 후 기재]\n취소, 손해배상, 사고 책임과 분쟁 해결: [합의 후 기재]`,
+    "협업 운영 합의서": `\n1. 운영과 역할\n${guidance(c).title}\n가게 담당 업무: [기재]\n협업자 담당 업무: [기재]\n\n2. 매출과 비용\n결제 수령: ${c.payment}\n예상 매출: ${c.sampleKey && c.expectedSales === 0 ? "미입력" : `${money(c.expectedSales)}원`}\n식재료 조달·비용 부담: [기재]\n환불·고객 응대 담당: [기재]\n\n3. 지급과 마감\n지급액·산정 방식·지급일: [합의 후 기재]\n취소, 손해배상, 사고 책임과 분쟁 해결: [합의 후 기재]`,
     "일일 근로조건 확인서": `\n근로관계 확인을 위한 작성 보조 문서입니다. 완성된 근로계약서가 아닙니다.\n\n업무: ${c.activity}\n근무 장소: ${store.name}\n시작·종료: ${c.startTime}–${c.endTime}\n휴게시간: [시작·종료 및 총 시간 기재]\n기본임금 입력액: ${money(c.settlement.wage)}원\n성과급 입력액: ${money(c.settlement.bonus)}원\n임금 산정 기준·구성항목: [기재]\n지급일·지급 방법: [기재]\n소정근로일·휴일·휴가 등 해당 조건: [확인 후 기재]\n\n최저임금, 연장·야간·휴일근로 등 적용 여부와 서면 명시·교부 의무를 확인하고 고용노동부 표준근로계약서 등 공식 양식으로 최종 작성하세요.`,
     "공간 대관 계약서": `\n1. 사용 범위\n공간·시설·장비: [기재]\n사용 목적: ${c.activity}\n설치·철수 시간: [기재]\n\n2. 대관료와 책임\n대관료·보증금·지급일: [기재]\n결제 수령 예정: ${c.payment}\n영업신고·등록 등 운영 요건 확인 담당: [기재]\n시설 파손, 청소, 소음, 사고·배상 책임: [합의 후 기재]\n취소·환불 조건: [합의 후 기재]\n\n대관 계약만으로 판매·조리 등 영업 요건이 충족되지는 않습니다.`,
     "참여자 사전 안내문": `\n함께 준비할 내용\n${
@@ -206,7 +227,7 @@ export function draftDocument(
         .filter((x) => !x.done)
         .map((x) => `□ ${x.title}`)
         .join("\n") || "등록된 준비 항목을 모두 확인했습니다."
-    }\n\n당일 참여 인원: ${c.people}명\n결제 담당: ${c.payment}\n식재료·장비 준비 담당: [기재]\n위생·안전 및 알레르기 안내: [기재]\n집합 시간·비상 연락처: [기재]\n\n정산 입력 현황\n매출 ${money(c.settlement.sales)}원 / 직접비·지급액 합계 ${money(s.costs)}원\n입력된 금액은 확정 지급 또는 세무 처리를 의미하지 않습니다.`,
+    }\n\n당일 참여 인원: ${c.people === null ? "확인 필요" : `${c.people}명`}\n결제 담당: ${c.payment}\n식재료·장비 준비 담당: [기재]\n위생·안전 및 알레르기 안내: [기재]\n집합 시간·비상 연락처: [기재]\n\n정산 입력 현황\n매출 ${money(c.settlement.sales)}원 / 직접비·지급액 합계 ${money(s.costs)}원\n입력된 금액은 확정 지급 또는 세무 처리를 의미하지 않습니다.`,
   };
   return (
     common +

@@ -1,3 +1,4 @@
+import { importAntarcticaSample } from "./samples.ts";
 import { MailDeliveryError } from "./email.ts";
 import { installAccountRoutes, type AccountOptions } from "./account.ts";
 import express, {
@@ -104,6 +105,7 @@ export function createApp(
  CREATE TABLE IF NOT EXISTS documents(id TEXT PRIMARY KEY,collaboration_id TEXT NOT NULL REFERENCES collaborations(id) ON DELETE CASCADE,kind TEXT NOT NULL,title TEXT NOT NULL,body TEXT NOT NULL,created_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS document_drafts(collaboration_id TEXT NOT NULL REFERENCES collaborations(id) ON DELETE CASCADE,kind TEXT NOT NULL,body TEXT NOT NULL,PRIMARY KEY(collaboration_id,kind));
  CREATE TABLE IF NOT EXISTS drafts(store_id TEXT PRIMARY KEY REFERENCES stores(id),data TEXT NOT NULL);
+ CREATE TABLE IF NOT EXISTS sample_imports(user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,sample_key TEXT NOT NULL,store_id TEXT NOT NULL REFERENCES stores(id),collaboration_id TEXT NOT NULL REFERENCES collaborations(id),PRIMARY KEY(user_id,sample_key));
  CREATE INDEX IF NOT EXISTS stores_user ON stores(user_id);
  CREATE INDEX IF NOT EXISTS collaborations_store ON collaborations(store_id);
  CREATE INDEX IF NOT EXISTS documents_collaboration ON documents(collaboration_id);`);
@@ -222,14 +224,12 @@ export function createApp(
     }
     if (options.requireEmailVerification) {
       await account.issue({ id, email: data.email }, "verify");
-      res
-        .status(202)
-        .json({
-          verificationRequired: true,
-          email: data.email,
-          message:
-            "이메일 확인 링크를 보냈어요. 확인 후 가게를 등록할 수 있어요.",
-        });
+      res.status(202).json({
+        verificationRequired: true,
+        email: data.email,
+        message:
+          "이메일 확인 링크를 보냈어요. 확인 후 가게를 등록할 수 있어요.",
+      });
       return;
     }
     signIn(res, id);
@@ -249,13 +249,11 @@ export function createApp(
       return;
     }
     if (options.requireEmailVerification && !account.verified(u.id)) {
-      res
-        .status(403)
-        .json({
-          error:
-            "이메일 확인이 필요합니다. 안내 메일을 확인하거나 다시 요청하세요.",
-          code: "EMAIL_NOT_VERIFIED",
-        });
+      res.status(403).json({
+        error:
+          "이메일 확인이 필요합니다. 안내 메일을 확인하거나 다시 요청하세요.",
+        code: "EMAIL_NOT_VERIFIED",
+      });
       return;
     }
     const old = tokenFrom(req);
@@ -295,6 +293,10 @@ export function createApp(
     next();
   });
   app.get("/api/me", (_req, res) => res.json(publicUser(res.locals.user)));
+  app.post("/api/samples/antarctica", (_req, res) => {
+    const result = importAntarcticaSample(db, res.locals.user.id);
+    res.status(result.created ? 201 : 200).json(result);
+  });
   function ownedStore(id: string, userId: string) {
     return db
       .prepare(

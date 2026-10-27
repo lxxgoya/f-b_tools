@@ -13,7 +13,8 @@
     "test": "tsx --test tests/*.test.ts",
     "test:e2e": "node tests/browser.mjs",
     "backup": "node server/backup.ts",
-    "test:account-browser": "node tests/account-browser.mjs"
+    "test:account-browser": "node tests/account-browser.mjs",
+    "test:sample-browser": "node tests/sample-browser.mjs"
   },
   "dependencies": {
     "@fontsource-variable/dm-sans": "^5.3.0",

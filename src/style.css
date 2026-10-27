@@ -2567,3 +2567,71 @@ td {
   font-size: 10px;
   color: #8a9a7a;
 }
+.sample-invitation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 25px;
+  border: 1px solid #e5cbd1;
+  background: #f7ecef;
+  border-radius: 9px;
+  margin-bottom: 29px;
+}
+.sample-invitation .eyebrow {
+  color: #a1556c;
+  margin-bottom: 7px;
+}
+.sample-invitation strong {
+  font-size: 15px;
+  color: #742a43;
+}
+.sample-invitation p {
+  font-size: 10px;
+  color: #a17c87;
+  margin: 7px 0 0;
+}
+.sample-invitation .btn {
+  color: #842b49;
+  border-color: #dcb9c4;
+  white-space: normal;
+}
+.sample-shortcut {
+  font-size: 10px;
+  justify-content: flex-end;
+  margin: 0 0 20px;
+  color: #966173;
+}
+.sample-notice {
+  background: #f7edef;
+  color: #986578;
+}
+.sample-sessions {
+  display: flex;
+  gap: 9px;
+  margin: 18px 0;
+  flex-wrap: wrap;
+}
+.sample-sessions span {
+  padding: 9px 12px;
+  background: #f4e6eb;
+  color: #8c3f59;
+  font-size: 11px;
+  border-radius: 5px;
+}
+@media (max-width: 600px) {
+  .sample-invitation {
+    padding: 19px;
+    display: block;
+  }
+  .sample-invitation strong {
+    font-size: 13px;
+  }
+  .sample-invitation .btn {
+    margin-top: 14px;
+    font-size: 11px;
+  }
+  .sample-invitation p {
+    font-size: 10px;
+  }
+}

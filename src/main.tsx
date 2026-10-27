@@ -85,6 +85,7 @@ function App() {
     [mobile, setMobile] = useState(false),
     [loading, setLoading] = useState(false);
   const [saveState, setSaveState] = useState("저장됨");
+  const [sampleBusy, setSampleBusy] = useState(false);
   const canonical = useRef(new Map<string, Collaboration>()),
     pending = useRef(new Map<string, Patch>()),
     running = useRef(new Set<string>()),
@@ -195,6 +196,35 @@ function App() {
   };
   const current = items.find((c) => c.id === selected),
     store = stores.find((s) => s.id === storeId);
+  const loadSample = async () => {
+    if (sampleBusy) return;
+    if (pending.current.size || running.current.size) {
+      setError("저장이 완료된 뒤 예제를 열어주세요.");
+      return;
+    }
+    setSampleBusy(true);
+    setError("");
+    try {
+      const result = await api<{
+        store: Store;
+        collaboration: Collaboration;
+        created: boolean;
+      }>("/samples/antarctica", "POST", {});
+      setStores((old) =>
+        old.some((s) => s.id === result.store.id)
+          ? old
+          : [...old, result.store],
+      );
+      canonical.current.set(result.collaboration.id, result.collaboration);
+      setItems([result.collaboration]);
+      setStoreId(result.store.id);
+      go("detail", result.collaboration.id);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSampleBusy(false);
+    }
+  };
   const logout = async () => {
     if (pending.current.size || running.current.size) {
       setError(
@@ -286,6 +316,14 @@ function App() {
         >
           <Plus size={13} /> 가게 추가
         </button>
+        <button
+          className="sample-shortcut text-button"
+          disabled={sampleBusy}
+          onClick={() => void loadSample()}
+        >
+          안타르티카 예제 열기
+          <ArrowUpRight size={13} />
+        </button>
         <nav>
           <span className="nav-label">WORKSPACE</span>
           <button
@@ -359,6 +397,26 @@ function App() {
           </div>
         </header>
         <main>
+          {page === "home" && (
+            <section className="sample-invitation">
+              <div>
+                <span className="eyebrow">ANTARCTICA · SESSION 08</span>
+                <strong>안타르티카의 하루를 예제로 살펴보세요.</strong>
+                <p>
+                  11.01 · Mexican Seafood Night · 기존 가게와 분리된 예제에
+                  추가해요.
+                </p>
+              </div>
+              <button
+                className="btn"
+                disabled={sampleBusy}
+                onClick={() => void loadSample()}
+              >
+                {sampleBusy ? "불러오는 중…" : "안타르티카 예제 불러오기"}
+                <ArrowUpRight size={16} />
+              </button>
+            </section>
+          )}
           {error && (
             <div role="alert" className="alert error">
               <AlertCircle size={18} />
@@ -422,6 +480,16 @@ function App() {
           ) : current ? (
             <>
               <div className="detail-heading">
+                {current.sampleKey && (
+                  <div className="info-note sample-notice">
+                    <Sprout size={18} />
+                    <p>
+                      행사 안내로 만든 예제입니다. 실제 예약·매출·지급 기록은
+                      입력하지 않았어요. 원래 가게로 돌아가려면 왼쪽 가게 선택
+                      메뉴를 이용하세요.
+                    </p>
+                  </div>
+                )}
                 <button className="back" onClick={() => go("home")}>
                   <ChevronLeft size={16} /> 협업 보드
                 </button>
@@ -793,7 +861,7 @@ function CollaborationCard({
         </span>
         <span>
           <Users size={13} />
-          {c.people}명
+          {c.people === null ? "인원 확인 필요" : `${c.people}명`}
         </span>
       </div>
       <div className="progress-label">
@@ -1035,7 +1103,7 @@ function NewCollaboration({
                     min={1}
                     max={1000}
                     required
-                    value={data.people}
+                    value={data.people ?? ""}
                     onChange={(e) => change("people", Number(e.target.value))}
                   />
                 </label>
@@ -1096,7 +1164,7 @@ function NewCollaboration({
               <Toggle
                 label="이 사람이 당일 가게에서 직접 일하나요?"
                 hint="조리, 서빙, 진행 등 현장 업무를 포함해요."
-                value={data.worksOnSite}
+                value={data.worksOnSite ?? false}
                 onChange={(v) => change("worksOnSite", v)}
               />
               <Toggle
@@ -1114,13 +1182,13 @@ function NewCollaboration({
                 <>
                   <Toggle
                     label="현장에서 조리하나요?"
-                    value={data.cooking}
+                    value={data.cooking ?? false}
                     onChange={(v) => change("cooking", v)}
                   />
                   <Toggle
                     label="외부에서 조리한 음식을 가져오나요?"
                     hint="집이나 다른 장소에서 만들어오는 음식도 포함해요."
-                    value={data.outsideFood}
+                    value={data.outsideFood ?? false}
                     onChange={(v) => change("outsideFood", v)}
                   />
                 </>
@@ -1302,6 +1370,15 @@ function Detail({
         <section className="panel structure">
           <span className="eyebrow">OPERATING STRUCTURE</span>
           <h2>{g.title}</h2>
+          {c.sessions && (
+            <div className="sample-sessions">
+              {c.sessions.map((session) => (
+                <span key={session.label}>
+                  {session.label} {session.startTime}–{session.endTime}
+                </span>
+              ))}
+            </div>
+          )}
           <div className="flow">
             {g.flow.map((s, i) => (
               <div key={s}>
@@ -1437,16 +1514,32 @@ function Detail({
             <dt>하는 일</dt>
             <dd>{c.activity}</dd>
             <dt>참여 인원</dt>
-            <dd>{c.people}명</dd>
+            <dd>{c.people === null ? "인원 확인 필요" : `${c.people}명`}</dd>
             <dt>조리</dt>
             <dd>
-              {c.cooking ? "현장 조리" : "현장 조리 없음"}
-              {c.outsideFood ? " · 외부 음식 반입" : ""}
+              {c.cooking === null
+                ? "조리 장소 확인 필요"
+                : c.cooking
+                  ? "현장 조리"
+                  : "현장 조리 없음"}
+              {c.outsideFood === null
+                ? " · 외부 음식 반입 확인 필요"
+                : c.outsideFood
+                  ? " · 외부 음식 반입"
+                  : ""}
             </dd>
             <dt>예상 매출</dt>
-            <dd>{money(c.expectedSales)}원</dd>
+            <dd>
+              {c.sampleKey && c.expectedSales === 0
+                ? "미입력"
+                : `${money(c.expectedSales)}원`}
+            </dd>
             <dt>예상 식재료비</dt>
-            <dd>{money(c.expectedIngredients)}원</dd>
+            <dd>
+              {c.sampleKey && c.expectedIngredients === 0
+                ? "미입력"
+                : `${money(c.expectedIngredients)}원`}
+            </dd>
           </dl>
           <label className="status-select">
             진행 상태
